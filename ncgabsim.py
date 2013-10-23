@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python2
 
 # NCGAB Simulator - Ivan A. Sergeev
 
@@ -8,7 +8,11 @@ import json
 import sys
 import copy
 import os
-import queue
+
+if sys.version_info.major == 2:
+    import Queue as queue
+else:
+    import queue
 
 import ff
 
