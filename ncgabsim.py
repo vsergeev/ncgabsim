@@ -4,6 +4,7 @@
 
 import threading
 import random
+import time
 import sys
 import os
 
@@ -59,6 +60,8 @@ if __name__ == "__main__":
 
         print("\nStarting simulation %d / %d: %s" % (si+1, len(SimParamsList), simParams['NAME']))
 
+        startTime = time.time()
+
         roundCount = 0
         while True:
             # Simulate the peers in a different order each round
@@ -67,15 +70,19 @@ if __name__ == "__main__":
                 n.simulate(roundCount)
 
             sys.stdout.write("\r%d, %d -- Round %d" % \
-                (len(simStats.message_inserts), len(simStats.message_decodes), roundCount+1))
+                (len(simStats._message_inserts), len(simStats._message_decodes), roundCount+1))
             # Stop the simulation if we've collected enough data
             if simEventStop.is_set():
                 break
 
             roundCount += 1
 
-        # Log the finish at this round count
-        simStats.finished(roundCount)
+        endTime = time.time()
+
+        # Log the finish
+        simStats.round_finished(roundCount)
+        simStats.time_elapsed(endTime - startTime)
+        simStats.time_finished(endTime)
         simLog.log(roundCount, "finish", 0, "")
 
         print()
@@ -84,4 +91,6 @@ if __name__ == "__main__":
         print("Wrote stats to %s" % simStats.dump())
         # Dump log
         print("Wrote log to %s" % simLog.dump())
+        # Print time elapsed
+        print("Time elapsed: %.3f sec" % (endTime - startTime))
 
