@@ -26,9 +26,10 @@ SimTemplate = {
 }
 
 if simConfig == 1:
-    NumPeersSweep = [10, 25, 50]
+    NumPeersSweep = [10, 25, 50, 100]
     ContributeIntervalSweep = [7.0, 10, 12.0, 15.0, 17.0, 20.0, 22.0]
     SeedSweep = [0x1, 0x2, 0x3]
+    SeedSweep = [0x1]
 
     SimParamsList = []
     for numPeers in NumPeersSweep:

@@ -59,7 +59,7 @@ class Peer():
             if self.decoded_window.add(p, self.simParams['TTL_DECODE']):
                 # Log the insert
                 self.simlog.log(rnd, "insert", self.nid, str(p))
-                self.simstats.message_insert(rnd, self.nid, str(p))
+                self.simstats.message_insert(rnd, self.nid, p.pid)
 
             # Choose a new insert message timeout
             #self.insert_message_timeout = int(random.expovariate(1.0 / float(self.simParams['CONTRIBUTE_INTERVAL'])))
@@ -78,11 +78,10 @@ class Peer():
             self.simlog.log(rnd, "receive", self.nid, "src: %d, gossip: %s" % (src, str([str(p) for p in gossip])))
 
         # Try to solve some gossip
-        (m_numrows, m_numcols, b_pids, s_pids, solved) = self.gossip_window.solve(self.decoded_window)
+        (m_numrows, m_numcols, solved) = self.gossip_window.solve(self.decoded_window)
         # Log the reduce attempt
         self.simlog.log(rnd, "reduce", self.nid, "%dx%d to %d" % (m_numrows, m_numcols, len(solved)))
         self.simstats.matrix_reduce(rnd, self.nid, m_numrows, m_numcols, len(solved))
-        self.simlog.log(rnd, "reduce_info", self.nid, "%s to %s" % (str(b_pids), str(s_pids)))
 
         # Add the decoded messages to our Decoded Window
         for p in solved:
@@ -90,7 +89,7 @@ class Peer():
                 # Log the decodes
                 self.simlog.log(rnd, "decode", self.nid, str(p))
                 if isinstance(p, RealMessage):
-                    self.simstats.message_decode(rnd, self.nid, str(p))
+                    self.simstats.message_decode(rnd, self.nid, p.pid)
 
         # Fill up Decoded Window with dummy messages if it is short
         for i in range(self.simParams['CODE_SIZE'] - len(self.decoded_window.live_objects())):

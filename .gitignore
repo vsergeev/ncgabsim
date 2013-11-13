@@ -3,4 +3,5 @@ logs/
 *.eps
 *.sh
 *.pyc
-
+*.so
+ff_test

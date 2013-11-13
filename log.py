@@ -7,16 +7,12 @@ class Log():
         self.elog = []
         self.simParams = simParams
 
-    def log(self, rnd, etype, enid, emsg):
-        e = {}
-        e['time'] = rnd
-        e['type'] = etype
-        e['nid'] = enid
-        e['msg'] = emsg
-        ejson = json.dumps(e)
-        self.elog.append(ejson)
+    def log(self, rnd, etype, nid, msg):
+        e = { 'time': rnd, 'type': etype, 'nid': nid, 'msg': msg }
+        self.elog.append(e)
 
         if self.simParams['PRINT_LOG']:
+            ejson = json.dumps(e)
             if etype == "join" or etype == "leave": print(termcolor.colored(ejson, "yellow"))
             elif etype == "receive": print(termcolor.colored(ejson, "yellow"))
             elif etype == "insert": print(termcolor.colored(ejson, "red"))
@@ -28,12 +24,13 @@ class Log():
         i = 0
         while True:
             path = "logs/%s-%d.log" % (self.simParams['NAME'], i)
-            if not os.path.exists(path): break
+            if not os.path.exists(path):
+                break
             i += 1
 
         f = open(path, "w")
         for e in self.elog:
-            f.write(e + "\n")
+            f.write(json.dumps(e) + "\n")
         f.close()
 
         return path

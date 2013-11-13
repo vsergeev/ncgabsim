@@ -9,9 +9,7 @@ class Message():
         return self.name
 
     def __eq__(self, other):
-        if (self.name == other.name):
-            return True
-        return False
+        return (self.pid == other.pid)
 
 class DummyMessage(Message):
     def __init__(self):
