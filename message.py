@@ -33,6 +33,7 @@ class RLC(Message):
         name = "LC/(" + ",".join([p.name for p in messages]) + ")" + "/(" + \
                        ",".join(["%02x" % c for c in coefs]) + ")"
         Message.__init__(self, name, pid)
+
         self.messages = messages
         self.coefs = coefs
 

@@ -1,148 +1,162 @@
 import random
+import operator
 import ctypes
 ctypes.cdll.LoadLibrary("./ff.so")
 cff = ctypes.CDLL("./ff.so")
 
 # Pre-compute finite field tables
 cff.ff8_precompute()
-# Pre-allocate ctypes matrix
+# Pre-allocate ctypes matrix for Gaussian Elimination
 Matrix = (ctypes.c_uint8 * (2048 * 2048))()
 # Pre-allocate ctypes solved indices array
 SolvedIndices = (ctypes.c_uint16 * (2048))()
 
-def choose_weighted_random(objects, scores):
+def choose_weighted_random(scores):
     scores_cdf = []
-    for s in scores[:]:
-        scores_cdf.append(sum(scores_cdf) + s)
+
+    runningSum = 0
+    for s in scores:
+        runningSum += s
+        scores_cdf.append(runningSum)
 
     random_score = random.random()*scores_cdf[-1]
+
+    index = None
     for index in range(len(scores_cdf)):
         if scores_cdf[index] > random_score:
             break
 
     return index
 
-class Window():
-    def __init__(self, keep_expired = False):
-        self.window = []
+class Decoded_Window():
+    def __init__(self):
+        self.window_live = []
+        self.window_expired = []
         self.ttl = {}
-        self.keep_expired = keep_expired
 
     def add(self, p, ttl):
-        if p is None or p in self.window:
+        if p in self.window_live or p in self.window_expired:
             return False
 
-        self.window.append(p)
+        # Add it to our live window
+        self.window_live.append(p)
         self.ttl[p.pid] = ttl
+
         return True
 
-    def prune(self):
-        if self.keep_expired:
-            return []
-
-        # Create a list of expired objects
-        expiredList = list(filter(lambda x: self.ttl[x.pid] == 0, self.window))
-
-        # Remove all expired objects from our window
-        for e in expiredList:
-            self.window.remove(e)
-            del self.ttl[e.pid]
-
-        return expiredList
-
     def tick(self):
-        # Decrement the TTL for each object in the window
-        for x in self.window:
-            self.ttl[x.pid] = max(0, self.ttl[x.pid] - 1)
-
-        return self.prune()
+        # Decrement the TTL for each object in the live window
+        for p in self.window_live[:]:
+            self.ttl[p.pid] -= 1
+            # Move the item to the expired window if it expired
+            if self.ttl[p.pid] <= 0:
+                del self.ttl[p.pid]
+                self.window_live.remove(p)
+                self.window_expired.append(p)
 
     def live_objects(self):
-        return list(filter(lambda x: self.ttl[x.pid] > 0, self.window))
+        return self.window_live[:]
 
     def objects(self):
-        return self.window[:]
-
-    def __str__(self):
-        s = "Window\n"
-        for x in self.window:
-            s += "\t" + str(x) + " TTL: " + str(self.ttl[x.pid]) + "\n"
-        return s
-
-class Decoded_Window(Window):
-    def __init__(self):
-        Window.__init__(self, keep_expired = True)
+        return self.window_live[:] + self.window_expired[:]
 
     def choose_random_uniform(self, n):
-        choices = self.live_objects()
-        random.shuffle(choices)
-        return choices[0 : min(n, len(choices))]
+        # Shuffle all live objects
+        choices = random.shuffle(self.live_objects())
+        n = min(n, len(choices))
+
+        # Choose first n
+        return choices[0:n]
 
     def choose_random(self, n):
-        choices = self.live_objects()
-        scores = [self.ttl[c.pid] for c in choices]
+        # Sort live objects by TTL
+        choices, scores = [list(t) for t in zip(*sorted([(m, self.ttl[m.pid]) for m in self.live_objects()], key=operator.itemgetter(1)))]
 
         n = min(n, len(choices))
+
+        # Choose n weighted random choices
         chosen = []
-        for i in range(n):
-            k = choose_weighted_random(choices, scores)
+        for _ in range(n):
+            k = choose_weighted_random(scores)
             chosen.append(choices[k])
             del choices[k]
             del scores[k]
 
         return chosen
 
-class Gossip_Window(Window):
+    def __str__(self):
+        s = "Decoded Window\n"
+        for x in self.window_live:
+            s += "\t" + str(x) + " TTL: " + str(self.ttl[x.pid]) + "\n"
+        return s
+
+class Gossip_Window():
     def __init__(self):
-        Window.__init__(self, keep_expired = False)
-        # Keep active objects in a dictionary by source as well
-        self.active_objects_by_source = {}
+        self.window_live = []
+        self.ttl = {}
+
+        self.window_live_by_source = {}
 
     def add(self, src, p, ttl):
-        if Window.add(self, p, ttl) == True:
-            # Create a new list for the source if it's not in our dictionary
-            if src not in self.active_objects_by_source:
-                self.active_objects_by_source[src] = []
+        if p in self.window_live:
+            return False
 
-            # Add the message to the source's list
-            self.active_objects_by_source[src].append(p)
-            return True
+        # Add it to our live window
+        self.window_live.append(p)
+        self.ttl[p.pid] = ttl
 
-        return False
+        # Create a new list for the source if it's not in our dictionary
+        if src not in self.window_live_by_source:
+            self.window_live_by_source[src] = []
 
-    def prune(self):
-        expiredList = Window.prune(self)
-        # For each expired object
-        for e in expiredList:
-            for src in self.active_objects_by_source:
-                # If the object exists in this source's list
-                if e in self.active_objects_by_source[src]:
-                    # Delete it
-                    self.active_objects_by_source[src].remove(e)
-                    # Delete the source's list if it's empty now
-                    if len(self.active_objects_by_source[src]) == 0:
-                        del self.active_objects_by_source[src]
-                    break
-        return expiredList
+        # Add the message to the source's list
+        self.window_live_by_source[src].append(p)
+
+        return True
+
+    def tick(self):
+        # For each source
+        for src in self.window_live_by_source:
+            # For each live object
+            for p in self.window_live_by_source[src]:
+                # Decrement the TTL
+                self.ttl[p.pid] -= 1
+                # Delete the object if it expires
+                if self.ttl[p.pid] <= 0:
+                    del self.ttl[p.pid]
+                    self.window_live_by_source[src].remove(p)
+                    self.window_live.remove(p)
+
 
     def choose_random_uniform(self):
         # Choose a random source
-        source = random.choice(list(self.active_objects_by_source.keys()))
+        src = random.choice(list(self.window_live_by_source.keys()))
 
         # Gather a list of objects by this source
-        objects = self.active_objects_by_source[source]
+        choices = self.window_live_by_source[src]
 
-        return random.choice(objects)
+        return random.choice(choices)
 
     def choose_random(self):
         # Choose a random source
-        source = random.choice(list(self.active_objects_by_source.keys()))
+        src = random.choice(list(self.window_live_by_source.keys()))
 
-        # Gather a list of objects by this source
-        choices = self.active_objects_by_source[source]
-        scores = [self.ttl[c.pid] for c in choices]
+        # Sort live objects by TTL
+        choices, scores = [list(t) for t in zip(*sorted([(m, self.ttl[m.pid]) for m in self.live_objects()], key=operator.itemgetter(1)))]
 
-        return choices[choose_weighted_random(choices, scores)]
+        return choices[choose_weighted_random(scores)]
+
+    def live_objects(self):
+        return self.window_live[:]
+
+    def objects(self):
+        return self.window_live[:]
+
+    def __str__(self):
+        s = "Gossip Window\n"
+        for x in self.window_live:
+            s += "\t" + str(x) + " TTL: " + str(self.ttl[x.pid]) + "\n"
+        return s
 
     def solve(self, decoded_window):
         # Map of column index -> message
