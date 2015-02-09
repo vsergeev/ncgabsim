@@ -1,0 +1,42 @@
+Lua port
+
+- ff.lua
+    ff.rref()
+- message.lua
+    message.Message()
+    message.DummyMessage()
+    message.EvilMessage()
+    message.RealMessage()
+    message.RLCMessage()
+- window.lua
+    window.GossipWindow()
+        :add()
+        :solve()
+        :tick()
+    window.DecodedWindow()
+        :add()
+        :choose()
+        :tick()
+- network.lua
+    network.Network(logger, stats)
+        :join(peer)
+        :leave(peer)
+        :lookup(n) -> [Peer, ...]
+- peer.lua
+    peer.Peer(network, logger, stats)
+        :step(rnd)
+        .queue
+    peer.CoopPeer(network, logger, stats)
+    peer.EvilPeer(network, logger, stats)
+- log.lua
+    log.Logger(filename)
+        :log(timestep, event, peerid, message)
+        :sync()
+- statistics.lua
+    stats.Statistics(filename)
+        :event1(...)
+        :event2(...)
+        :event3(...)
+        FIXME
+- ncgabsim.lua
+
